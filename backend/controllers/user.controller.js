@@ -1,29 +1,21 @@
 import { User } from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import getDataUri from "../utils/datauri.js";
-import cloudinary from "../utils/cloudinary.js";
+import { asyncHandler } from "../utils/asynchandler.js";
+import { ApiError } from "../utils/ApiError.js";
 
-export const register = async (req, res) => {
-    try {
+
+
+const register = asyncHandler(async (req, res) => {
         const { fullname, email, phoneNumber, password, role } = req.body;
          
         if (!fullname || !email || !phoneNumber || !password || !role) {
-            return res.status(400).json({
-                message: "Something is missing",
-                success: false
-            });
+            throw new ApiError(400, "Something is Missing");
         };
-        const file = req.file;
-        const fileUri = getDataUri(file);
-        const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
-
+        
         const user = await User.findOne({ email });
         if (user) {
-            return res.status(400).json({
-                message: 'User already exist with this email.',
-                success: false,
-            })
+            throw new ApiError(400, 'User already exist with this email.');
         }
         const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -33,49 +25,30 @@ export const register = async (req, res) => {
             phoneNumber,
             password: hashedPassword,
             role,
-            profile:{
-                profilePhoto:cloudResponse.secure_url,
-            }
         });
 
         return res.status(201).json({
             message: "Account created successfully.",
             success: true
         });
-    } catch (error) {
-        console.log(error);
-    }
-}
-export const login = async (req, res) => {
-    try {
+})
+const login = asyncHandler(async (req, res) => {
         const { email, password, role } = req.body;
         
         if (!email || !password || !role) {
-            return res.status(400).json({
-                message: "Something is missing",
-                success: false
-            });
+            throw new ApiError(400, "Something is missing")
         };
         let user = await User.findOne({ email });
         if (!user) {
-            return res.status(400).json({
-                message: "Incorrect email or password.",
-                success: false,
-            })
+            throw new ApiError(400, "Incorrect email or password.")
         }
         const isPasswordMatch = await bcrypt.compare(password, user.password);
         if (!isPasswordMatch) {
-            return res.status(400).json({
-                message: "Incorrect email or password.",
-                success: false,
-            })
+            throw new ApiError(400, "Incorrect email or password.")
         };
         // check role is correct or not
         if (role !== user.role) {
-            return res.status(400).json({
-                message: "Account doesn't exist with current role.",
-                success: false
-            })
+            throw new ApiError(400, "Account doesn't exist with current role.")
         };
 
         const tokenData = {
@@ -93,34 +66,24 @@ export const login = async (req, res) => {
         }
 
         return res.status(200).cookie("token", token, { maxAge: 1 * 24 * 60 * 60 * 1000, httpsOnly: true, sameSite: 'strict' }).json({
-            message: `Welcome back ${user.fullname}`,
+            message: `Welcome back ${user.fullname} you loggedIn successfully`,
             user,
             success: true
         })
-    } catch (error) {
-        console.log(error);
-    }
 }
-export const logout = async (req, res) => {
-    try {
+
+)
+const logout = asyncHandler(async (req, res) => {
         return res.status(200).cookie("token", "", { maxAge: 0 }).json({
             message: "Logged out successfully.",
             success: true
         })
-    } catch (error) {
-        console.log(error);
-    }
-}
-export const updateProfile = async (req, res) => {
-    try {
+})
+const updateProfile = asyncHandler(async (req, res) => {
         const { fullname, email, phoneNumber, bio, skills } = req.body;
         
         const file = req.file;
         // cloudinary ayega idhar
-        const fileUri = getDataUri(file);
-        const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
-
-
 
         let skillsArray;
         if(skills){
@@ -130,10 +93,7 @@ export const updateProfile = async (req, res) => {
         let user = await User.findById(userId);
 
         if (!user) {
-            return res.status(400).json({
-                message: "User not found.",
-                success: false
-            })
+            throw new ApiError(400, "User not found.")
         }
         // updating data
         if(fullname) user.fullname = fullname
@@ -143,12 +103,7 @@ export const updateProfile = async (req, res) => {
         if(skills) user.profile.skills = skillsArray
       
         // resume comes later here...
-        if(cloudResponse){
-            user.profile.resume = cloudResponse.secure_url // save the cloudinary url
-            user.profile.resumeOriginalName = file.originalname // Save the original file name
-        }
-
-
+        
         await user.save();
 
         user = {
@@ -165,7 +120,13 @@ export const updateProfile = async (req, res) => {
             user,
             success:true
         })
-    } catch (error) {
-        console.log(error);
-    }
+}
+
+)
+
+export {
+    register,
+    login,
+    logout,
+    updateProfile
 }
