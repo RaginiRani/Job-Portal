@@ -36,7 +36,7 @@ const login = asyncHandler(async (req, res) => {
         const { email, password, role } = req.body;
         
         if (!email || !password || !role) {
-            throw new ApiError(400, "Something is missing")
+            throw new ApiError(400, "Something is missing");
         };
         let user = await User.findOne({ email });
         if (!user) {
